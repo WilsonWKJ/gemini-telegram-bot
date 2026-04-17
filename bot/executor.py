@@ -16,8 +16,8 @@ MAX_MESSAGE_LENGTH = 4096
 MAX_OUTPUT_LENGTH = 100000
 # Default command timeout
 DEFAULT_TIMEOUT = 120
-# Extended timeout for claude CLI calls
-CLAUDE_TIMEOUT = 900  # 15 minutes for complex claude -p operations
+# Extended timeout for gemini CLI calls
+GEMINI_TIMEOUT = 900  # 15 minutes for complex gemini -p operations
 
 
 @dataclass

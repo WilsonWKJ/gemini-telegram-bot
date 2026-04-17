@@ -1,36 +1,31 @@
-# Gemini Telegram Bot 🤖📱
+# Gemini Telegram Bot
 
-A Telegram bot that provides AI-powered operations access to the Lift infrastructure from your phone — no VPN, no laptop needed.
+A personal Telegram bot powered by Google Gemini CLI — chat with Gemini from your phone, anywhere.
 
 ## Architecture
 
 ```
-📱 Phone (Telegram, any network)
-    │
-    ▼ Send message
-☁️  Telegram Cloud (public internet)
-    │
-    │  Bot polls for new messages (outbound HTTPS only)
-    │  ⚡ No inbound ports, no exposed IP
-    ▼
-🖥️  kube-controller (10.209.x.x, internal network)
-    ├── 🧠 AI: api.rdsec.trendmicro.com (Gemini API via Google AI)
-    ├── ☸️  kubectl (all shard contexts)
-    ├── 🔑 SSH to KEA DHCP / VMs
-    ├── 🏗️  govc (vCenter operations)
-    └── 🔧 Jenkins API (via port-forward)
-    │
-    ▼ Send response (outbound HTTPS)
-☁️  Telegram Cloud → 📱 You receive the reply
+Phone (Telegram, any network)
+    |
+    v Send message
+Telegram Cloud (public internet)
+    |
+    |  Bot polls for new messages (outbound HTTPS only)
+    |  No inbound ports, no exposed IP
+    v
+Host machine
+    +-- Gemini CLI (Google account auth)
+    |
+    v Send response (outbound HTTPS)
+Telegram Cloud -> You receive the reply
 ```
 
 ## Key Design Decisions
 
-- **Polling mode** (not webhook) — no need to expose any port on kube-controller
-- **Gemini API via Google AI** (`api.rdsec.trendmicro.com`) — free, company-provided, Anthropic-compatible API
+- **Polling mode** (not webhook) — no need to expose any port
+- **Gemini CLI** — no API keys to manage, authenticates via Google account
 - **Chat ID whitelist** — only responds to your Telegram account
-- **Confirmation for destructive ops** — delete/stop/kill commands require `/confirm`
-- **System context** — `.clinerules` loaded as system prompt for full infrastructure awareness
+- **Thin wrapper** — bot just passes messages to `gemini -p --yolo` and returns output
 
 ## Quick Start
 
@@ -46,22 +41,28 @@ A Telegram bot that provides AI-powered operations access to the Lift infrastruc
 2. Visit `https://api.telegram.org/bot<YOUR_TOKEN>/getUpdates`
 3. Find your `chat.id` in the response
 
-### 3. Configure
+### 3. Install Gemini CLI
 
 ```bash
-cp config/secrets.env.template ~/Documents/secrets/telegram-agent.env
-# Edit the file with your bot token and chat ID
-vim ~/Documents/secrets/telegram-agent.env
+nvm use 22
+npm install -g @google/gemini-cli
+gemini auth login
 ```
 
-### 4. Install Dependencies
+### 4. Configure
 
 ```bash
-cd ~/Projects/gemini-telegram-bot
+cp config/secrets.env.template ~/Documents/secrets/gemini-telegram-agent.env
+vim ~/Documents/secrets/gemini-telegram-agent.env
+```
+
+### 5. Install Dependencies
+
+```bash
 pip install -r requirements.txt
 ```
 
-### 5. Run
+### 6. Run
 
 ```bash
 # Manual run (for testing)
@@ -75,54 +76,40 @@ sudo systemctl enable --now gemini-telegram-bot
 
 ## Usage
 
-### Quick Commands (shortcuts)
+### Commands
 
 | Command | Description |
 |---------|-------------|
-| `/status` | Overview: pods, queue, DHCP, nodes |
-| `/pods` | List Jenkins namespace pods |
-| `/nodes` | Show K8s node status |
-| `/queue` | Show Redis job queue count + config |
-| `/dhcp` | Check KEA DHCP lease status |
-| `/vms` | Count VMs in vCenter |
-| `/context [name]` | Show/switch K8s context |
-| `/help` | Show all commands |
+| `/start` | Welcome message |
+| `/help` | Show commands |
+| `/clear` | Clear conversation history |
+| `/last_error` | Show last error details |
 
-### AI Chat (freeform)
+### Chat
 
-Just type any message without a `/` prefix:
+Just type any message — it gets sent to Gemini CLI:
 
 ```
-> Check why autopilot jobs are failing
-> How many pods are running on worker3?
-> What's the current concurrent_job_limit?
-> Show me the last 5 jenkins slave pods that crashed
+> What's the weather in Taipei?
+> Help me write a Python script to parse CSV files
+> Explain how DNS works
 ```
-
-The AI has full knowledge of your `.clinerules` infrastructure context and can execute commands to investigate.
-
-### Safety Controls
-
-- 🟢 **Read-only commands** execute immediately
-- 🟡 **Mutating commands** (scale, restart, patch) show preview + require `/confirm`
-- 🔴 **Destructive commands** (delete, kill, destroy) show warning + require `/confirm`
 
 ## Files
 
 ```
 gemini-telegram-bot/
-├── README.md              # This file
-├── PLAN.md                # Detailed design document
+├── README.md
+├── PLAN.md                # Design document
 ├── main.py                # Entry point
 ├── bot/
 │   ├── __init__.py
 │   ├── handlers.py        # Telegram command handlers
-│   ├── ai_client.py       # Gemini API via Google AI client
-│   ├── executor.py        # Safe command executor
-│   └── security.py        # Auth, rate limiting, confirmation
+│   ├── ai_client.py       # Gemini CLI wrapper
+│   ├── executor.py        # Subprocess executor
+│   └── security.py        # Auth + rate limiting
 ├── config/
-│   ├── secrets.env.template
-│   └── system_prompt.md   # AI system context (from .clinerules)
+│   └── secrets.env.template
 ├── systemd/
 │   └── gemini-telegram-bot.service
 ├── requirements.txt
@@ -132,7 +119,6 @@ gemini-telegram-bot/
 ## Security
 
 - Bot only responds to whitelisted Telegram chat IDs
-- JWT token for AI endpoint stored in secrets file
-- Destructive operations require explicit confirmation
-- All commands are logged with timestamps
-- No inbound ports opened on kube-controller
+- Rate limited (30 req/min)
+- No inbound ports opened
+- No API keys stored — Gemini CLI uses Google account auth

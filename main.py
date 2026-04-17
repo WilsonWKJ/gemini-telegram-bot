@@ -53,12 +53,6 @@ def load_config() -> dict:
     config = {
         "telegram_bot_token": os.environ.get("TELEGRAM_BOT_TOKEN"),
         "telegram_chat_id": os.environ.get("TELEGRAM_CHAT_ID"),
-        "gemini_base_url": os.environ.get(
-            "GEMINI_BASE_URL",
-            "https://api.rdsec.trendmicro.com/prod/aiendpoint/",
-        ),
-        "gemini_api_key": os.environ.get("GEMINI_API_KEY"),
-        "gemini_model": os.environ.get("GEMINI_MODEL", "gemini-3.1-pro"),
         "kubeconfig": os.environ.get(
             "KUBECONFIG", str(Path.home() / ".kube" / "config-merged")
         ),
@@ -70,8 +64,6 @@ def load_config() -> dict:
         missing.append("TELEGRAM_BOT_TOKEN")
     if not config["telegram_chat_id"]:
         missing.append("TELEGRAM_CHAT_ID")
-    if not config["gemini_api_key"]:
-        missing.append("GEMINI_API_KEY")
 
     if missing:
         logger.error(
@@ -90,8 +82,6 @@ def main():
 
     # Load config
     config = load_config()
-    logger.info(f"AI endpoint: {config['gemini_base_url']}")
-    logger.info(f"AI model: {config['gemini_model']}")
     logger.info(f"KUBECONFIG: {config['kubeconfig']}")
 
     # Parse chat IDs (support comma-separated list)
@@ -110,13 +100,7 @@ def main():
     # Initialize components
     security = SecurityManager(allowed_chat_ids=chat_ids)
     executor = CommandExecutor(kubeconfig=config["kubeconfig"])
-    ai_client = AIClient(
-        base_url=config["gemini_base_url"],
-        api_key=config["gemini_api_key"],
-        model=config["gemini_model"],
-        executor=executor,
-        security=security,
-    )
+    ai_client = AIClient(executor=executor)
 
     # Setup Telegram bot
     app = ApplicationBuilder().token(config["telegram_bot_token"]).build()
@@ -127,13 +111,6 @@ def main():
     # Command handlers
     app.add_handler(CommandHandler("start", handlers["start"]))
     app.add_handler(CommandHandler("help", handlers["help"]))
-    app.add_handler(CommandHandler("status", handlers["status"]))
-    app.add_handler(CommandHandler("pods", handlers["pods"]))
-    app.add_handler(CommandHandler("nodes", handlers["nodes"]))
-    app.add_handler(CommandHandler("queue", handlers["queue"]))
-    app.add_handler(CommandHandler("context", handlers["context"]))
-    app.add_handler(CommandHandler("confirm", handlers["confirm"]))
-    app.add_handler(CommandHandler("cancel", handlers["cancel"]))
     app.add_handler(CommandHandler("clear", handlers["clear"]))
     app.add_handler(CommandHandler("last_error", handlers["last_error"]))
 
