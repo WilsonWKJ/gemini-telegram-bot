@@ -1,0 +1,26 @@
+[Unit]
+Description=Gemini Telegram Bot - AI-powered ops bot
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=rogueone
+Group=rogueone
+WorkingDirectory=/home/rogueone/Projects/gemini-telegram-bot
+EnvironmentFile=/home/rogueone/Documents/secrets/gemini-telegram-agent.env
+Environment=KUBECONFIG=/home/rogueone/.kube/config-merged
+Environment=PATH=/home/rogueone/.local/bin:/home/rogueone/.npm-global/bin:/home/rogueone/.nvm/versions/node/v22.22.2/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+ExecStart=/usr/bin/python3 /home/rogueone/Projects/gemini-telegram-bot/main.py
+Restart=always
+RestartSec=10
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=gemini-telegram-bot
+
+NoNewPrivileges=false
+ProtectSystem=false
+ProtectHome=false
+
+[Install]
+WantedBy=multi-user.target
