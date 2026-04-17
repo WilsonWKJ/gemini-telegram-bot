@@ -71,9 +71,6 @@ Any message without `/` prefix -> sent to Gemini CLI via `gemini -p --yolo`
 # Telegram
 TELEGRAM_BOT_TOKEN=<from @BotFather>
 TELEGRAM_CHAT_ID=<your chat ID>
-
-# Infrastructure
-KUBECONFIG=/home/rogueone/.kube/config-merged
 ```
 
 No AI API keys needed — Gemini CLI authenticates via `gemini auth login`.

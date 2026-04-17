@@ -1,4 +1,4 @@
-"""Safe command executor — runs shell commands with timeout, output limits, and env setup."""
+"""Command executor — runs shell commands with timeout and output limits."""
 
 import asyncio
 import logging
@@ -63,11 +63,8 @@ class CommandResult:
 class CommandExecutor:
     """Executes shell commands safely with proper environment setup."""
 
-    def __init__(self, kubeconfig: str | None = None):
+    def __init__(self):
         self.env = os.environ.copy()
-        # Set KUBECONFIG
-        self.env["KUBECONFIG"] = kubeconfig or f"{HOME}/.kube/config-merged"
-        # Ensure govc env is available if needed
         self.env.setdefault("PATH", f"{HOME}/.local/bin:{HOME}/.npm-global/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin")
 
     async def execute(self, command: str, timeout: int = DEFAULT_TIMEOUT) -> CommandResult:

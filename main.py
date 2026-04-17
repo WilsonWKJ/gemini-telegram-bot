@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """
-Gemini Telegram Bot — AI-powered infrastructure ops bot using Gemini.
+Gemini Telegram Bot — personal AI chatbot powered by Gemini CLI.
 
-Runs on kube-controller, polls Telegram for messages, routes to Gemini AI
-via OpenAI-compatible API, executes infrastructure commands.
+Polls Telegram for messages, routes to Gemini CLI, returns responses.
 """
 
 import logging
@@ -53,9 +52,6 @@ def load_config() -> dict:
     config = {
         "telegram_bot_token": os.environ.get("TELEGRAM_BOT_TOKEN"),
         "telegram_chat_id": os.environ.get("TELEGRAM_CHAT_ID"),
-        "kubeconfig": os.environ.get(
-            "KUBECONFIG", str(Path.home() / ".kube" / "config-merged")
-        ),
     }
 
     # Validate required config
@@ -82,8 +78,6 @@ def main():
 
     # Load config
     config = load_config()
-    logger.info(f"KUBECONFIG: {config['kubeconfig']}")
-
     # Parse chat IDs (support comma-separated list)
     chat_ids = set()
     for cid in config["telegram_chat_id"].split(","):
@@ -99,7 +93,7 @@ def main():
 
     # Initialize components
     security = SecurityManager(allowed_chat_ids=chat_ids)
-    executor = CommandExecutor(kubeconfig=config["kubeconfig"])
+    executor = CommandExecutor()
     ai_client = AIClient(executor=executor)
 
     # Setup Telegram bot

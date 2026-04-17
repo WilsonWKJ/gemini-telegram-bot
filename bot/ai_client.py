@@ -90,7 +90,7 @@ class AIClient:
         elif not result.success:
             response = f"❌ Gemini CLI error (rc={result.return_code}):\n{result.output[:500]}"
         else:
-            response = result.output.strip()
+            response = self._clean_output(result.output)
             if not response:
                 response = "(no response from Gemini)"
 
@@ -100,6 +100,23 @@ class AIClient:
         self._trim_history(chat_id)
 
         return response
+
+    @staticmethod
+    def _clean_output(raw: str) -> str:
+        """Strip Gemini CLI boilerplate lines from output."""
+        lines = raw.strip().splitlines()
+        cleaned = []
+        for line in lines:
+            stripped = line.strip()
+            if stripped.startswith("YOLO mode is enabled"):
+                continue
+            if stripped.startswith("ERROR IDEClient"):
+                continue
+            cleaned.append(line)
+        # Remove leading blank lines after stripping boilerplate
+        while cleaned and not cleaned[0].strip():
+            cleaned.pop(0)
+        return "\n".join(cleaned)
 
     async def close(self):
         """No cleanup needed for CLI-based client."""
