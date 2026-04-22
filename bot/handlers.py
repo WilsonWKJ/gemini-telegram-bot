@@ -1,6 +1,7 @@
 """Telegram command handlers — simple wrapper around Gemini CLI."""
 
 import logging
+import time
 import traceback
 from datetime import datetime, timezone
 from telegram import Update
@@ -114,6 +115,7 @@ def setup_handlers(
             "🤖 *Gemini Telegram Bot*\n\n"
             "I'm powered by Google Gemini CLI.\n\n"
             "📋 *Commands:*\n"
+            "/status — Bot health check\n"
             "/clear — Clear conversation history\n"
             "/last\\_error — Show last error details\n"
             "/help — Show this help\n\n"
@@ -127,11 +129,46 @@ def setup_handlers(
         await update.message.reply_text(
             "🤖 *Gemini Telegram Bot*\n\n"
             "💬 Just type any message to chat with Gemini.\n"
-            "Gemini can execute commands, read files, and more.\n\n"
-            "� *Commands:*\n"
+            "Gemini can read its own source code and explain how it works.\n\n"
+            "📋 *Commands:*\n"
+            "`/status` — Bot health check\n"
             "`/clear` — Clear conversation history\n"
             "`/last_error` — Show last error details\n"
             "`/help` — Show this help\n",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+
+    @check_auth
+    async def status_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /status — show bot health and stats."""
+        uptime_secs = time.time() - ai_client.start_time
+        days, remainder = divmod(int(uptime_secs), 86400)
+        hours, remainder = divmod(remainder, 3600)
+        minutes, _ = divmod(remainder, 60)
+        if days > 0:
+            uptime_str = f"{days}d {hours}h {minutes}m"
+        elif hours > 0:
+            uptime_str = f"{hours}h {minutes}m"
+        else:
+            uptime_str = f"{minutes}m"
+
+        active_chats = len(ai_client.conversations)
+
+        # Quick check: can we reach gemini CLI?
+        check_cmd = (
+            'export NVM_DIR="$HOME/.nvm" && . "$NVM_DIR/nvm.sh" && '
+            'nvm use 22 >/dev/null 2>&1 && gemini --version 2>&1'
+        )
+        result = await executor.execute(check_cmd, timeout=15)
+        gemini_version = result.stdout.strip() if result.success else "unavailable"
+
+        await update.message.reply_text(
+            f"📊 *Bot Status*\n\n"
+            f"✅ Running\n"
+            f"⏱ Uptime: `{uptime_str}`\n"
+            f"🤖 Gemini CLI: `{gemini_version}`\n"
+            f"💬 Active conversations: `{active_chats}`\n"
+            f"🔒 Rate limit: `{security.rate_limit} req/min`",
             parse_mode=ParseMode.MARKDOWN,
         )
 
@@ -204,6 +241,7 @@ def setup_handlers(
     return {
         "start": start_handler,
         "help": help_handler,
+        "status": status_handler,
         "clear": clear_handler,
         "last_error": last_error_handler,
         "ai_chat": ai_chat_handler,

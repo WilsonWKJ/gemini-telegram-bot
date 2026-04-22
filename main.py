@@ -105,6 +105,7 @@ def main():
     # Command handlers
     app.add_handler(CommandHandler("start", handlers["start"]))
     app.add_handler(CommandHandler("help", handlers["help"]))
+    app.add_handler(CommandHandler("status", handlers["status"]))
     app.add_handler(CommandHandler("clear", handlers["clear"]))
     app.add_handler(CommandHandler("last_error", handlers["last_error"]))
 
