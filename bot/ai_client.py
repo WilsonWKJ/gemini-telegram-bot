@@ -32,7 +32,9 @@ _PROGRESS_DEBOUNCE_SECS = 2.0
 PROJECT_DIR = Path(__file__).parent.parent.resolve()
 
 # Max conversation history (for context passed to gemini -p)
-MAX_HISTORY = 50
+MAX_HISTORY = 10
+MAX_HISTORY_CHARS_PER_MSG = 1000
+MAX_HISTORY_CHARS_TOTAL = 5000
 
 
 def _load_system_prompt() -> str:
@@ -73,9 +75,15 @@ class AIClient:
         history = self._get_history(chat_id)
         if history:
             parts.append("\n[Previous conversation]")
-            for msg in history[-15:]:
+            total_chars = 0
+            for msg in history[-MAX_HISTORY:]:
                 role = "User" if msg["role"] == "user" else "Assistant"
-                text = msg["content"][:2000]
+                text = msg["content"][:MAX_HISTORY_CHARS_PER_MSG]
+                if total_chars + len(text) > MAX_HISTORY_CHARS_TOTAL:
+                    text = text[:MAX_HISTORY_CHARS_TOTAL - total_chars]
+                    parts.append(f"{role}: {text}")
+                    break
+                total_chars += len(text)
                 parts.append(f"{role}: {text}")
 
         parts.append(f"\n[Current message]\nUser: {user_message}")
@@ -143,7 +151,7 @@ class AIClient:
 
         # Store in history
         history.append({"role": "user", "content": user_message})
-        history.append({"role": "assistant", "content": response[:4000]})
+        history.append({"role": "assistant", "content": response[:MAX_HISTORY_CHARS_PER_MSG]})
         self._trim_history(chat_id)
 
         return response
