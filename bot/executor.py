@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import os
+from collections.abc import Awaitable, Callable
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -116,6 +117,85 @@ class CommandExecutor:
             )
 
         logger.info(f"Result: rc={result.return_code}, stdout={len(result.stdout)} chars")
+        return result
+
+    async def execute_streaming(
+        self,
+        command: str,
+        line_callback: Callable[[str], Awaitable[None]],
+        timeout: int = DEFAULT_TIMEOUT,
+    ) -> CommandResult:
+        """Execute a shell command, calling line_callback for each stdout line as it arrives."""
+        logger.info(f"Executing (streaming): {command}")
+
+        try:
+            process = await asyncio.create_subprocess_shell(
+                command,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=self.env,
+                cwd=HOME,
+            )
+
+            stdout_lines: list[str] = []
+            stderr_data = b""
+
+            async def _read_stderr():
+                nonlocal stderr_data
+                stderr_data = await process.stderr.read()
+
+            async def _read_stdout_lines():
+                while True:
+                    line_bytes = await process.stdout.readline()
+                    if not line_bytes:
+                        break
+                    line = line_bytes.decode("utf-8", errors="replace")
+                    # Respect output limit
+                    if sum(len(l) for l in stdout_lines) < MAX_OUTPUT_LENGTH:
+                        stdout_lines.append(line)
+                    try:
+                        await line_callback(line)
+                    except Exception:
+                        pass
+
+            try:
+                await asyncio.wait_for(
+                    asyncio.gather(_read_stdout_lines(), _read_stderr()),
+                    timeout=timeout,
+                )
+                await process.wait()
+
+                stdout = "".join(stdout_lines).strip()
+                stderr = stderr_data.decode("utf-8", errors="replace")[:MAX_OUTPUT_LENGTH].strip()
+
+                result = CommandResult(
+                    command=command,
+                    stdout=stdout,
+                    stderr=stderr,
+                    return_code=process.returncode or 0,
+                )
+
+            except asyncio.TimeoutError:
+                process.kill()
+                await process.wait()
+                result = CommandResult(
+                    command=command,
+                    stdout="".join(stdout_lines).strip(),
+                    stderr=f"Command timed out after {timeout}s",
+                    return_code=-1,
+                    timed_out=True,
+                )
+
+        except Exception as e:
+            logger.error(f"Failed to execute command: {e}")
+            result = CommandResult(
+                command=command,
+                stdout="",
+                stderr=str(e),
+                return_code=-1,
+            )
+
+        logger.info(f"Result (streaming): rc={result.return_code}, stdout={len(result.stdout)} chars")
         return result
 
     async def execute_multi(self, commands: list[str], timeout: int = DEFAULT_TIMEOUT) -> list[CommandResult]:

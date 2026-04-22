@@ -6,12 +6,27 @@ No API keys or system prompts needed.
 """
 
 import logging
+import re
 import time
 from pathlib import Path
 
 from .executor import CommandExecutor, CommandResult, GEMINI_TIMEOUT
 
 logger = logging.getLogger(__name__)
+
+# Patterns that indicate Gemini is narrating what it's doing
+_PROGRESS_PATTERNS = [
+    re.compile(r"^I will ", re.IGNORECASE),
+    re.compile(r"^I'll ", re.IGNORECASE),
+    re.compile(r"^Let me ", re.IGNORECASE),
+    re.compile(r"^Now I ", re.IGNORECASE),
+    re.compile(r"^Searching ", re.IGNORECASE),
+    re.compile(r"^Reading ", re.IGNORECASE),
+    re.compile(r"^Checking ", re.IGNORECASE),
+]
+
+# Minimum interval between progress messages to avoid spamming
+_PROGRESS_DEBOUNCE_SECS = 2.0
 
 # Bot's own project directory — so Gemini CLI can read its source code
 PROJECT_DIR = Path(__file__).parent.parent.resolve()
@@ -67,9 +82,16 @@ class AIClient:
 
         return "\n".join(parts)
 
+    @staticmethod
+    def _is_progress_line(line: str) -> bool:
+        """Check if a line is Gemini narrating its actions."""
+        stripped = line.strip()
+        return any(p.match(stripped) for p in _PROGRESS_PATTERNS)
+
     async def chat(self, chat_id: int, user_message: str, progress_callback=None) -> str:
         """Send a message to Gemini CLI and return the response."""
         history = self._get_history(chat_id)
+        last_progress_time = 0.0
 
         async def _notify(msg: str):
             if progress_callback:
@@ -79,6 +101,19 @@ class AIClient:
                     pass
 
         await _notify("🤖 Calling Gemini CLI...")
+
+        async def _on_line(line: str):
+            """Called for each stdout line as it arrives from Gemini CLI."""
+            nonlocal last_progress_time
+            if not progress_callback:
+                return
+            if self._is_progress_line(line):
+                now = time.monotonic()
+                if now - last_progress_time >= _PROGRESS_DEBOUNCE_SECS:
+                    last_progress_time = now
+                    # Truncate long progress lines for Telegram readability
+                    text = line.strip()[:200]
+                    await _notify(f"⏳ {text}")
 
         # Build the prompt
         prompt = self._build_prompt(chat_id, user_message)
@@ -93,7 +128,9 @@ class AIClient:
             f"timeout 600 gemini -p '{escaped_prompt}' --yolo 2>&1"
         )
 
-        result = await self.executor.execute(command, timeout=GEMINI_TIMEOUT)
+        result = await self.executor.execute_streaming(
+            command, line_callback=_on_line, timeout=GEMINI_TIMEOUT
+        )
 
         if result.timed_out:
             response = "⏰ Gemini CLI timed out. Try a simpler question."
@@ -143,8 +180,8 @@ class AIClient:
             # Gemini tool execution errors (workspace path restrictions)
             if stripped.startswith("Error executing tool"):
                 continue
-            # Gemini thinking-out-loud lines
-            if stripped.startswith("I will "):
+            # Gemini thinking-out-loud lines (already sent as progress)
+            if any(p.match(stripped) for p in _PROGRESS_PATTERNS):
                 continue
             cleaned.append(line)
         # Remove leading/trailing blank lines after stripping

@@ -8,7 +8,7 @@ from telegram import Update
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode, ChatAction
 
-from .ai_client import AIClient
+from .ai_client import AIClient, _load_system_prompt
 from .executor import CommandExecutor
 from .security import SecurityManager
 
@@ -116,6 +116,7 @@ def setup_handlers(
             "I'm powered by Google Gemini CLI.\n\n"
             "📋 *Commands:*\n"
             "/status — Bot health check\n"
+            "/check\\_system\\_prompt — View & explain system prompt\n"
             "/clear — Clear conversation history\n"
             "/last\\_error — Show last error details\n"
             "/help — Show this help\n\n"
@@ -132,6 +133,7 @@ def setup_handlers(
             "Gemini can read its own source code and explain how it works.\n\n"
             "📋 *Commands:*\n"
             "`/status` — Bot health check\n"
+            "`/check_system_prompt` — View & explain system prompt\n"
             "`/clear` — Clear conversation history\n"
             "`/last_error` — Show last error details\n"
             "`/help` — Show this help\n",
@@ -171,6 +173,51 @@ def setup_handlers(
             f"🔒 Rate limit: `{security.rate_limit} req/min`",
             parse_mode=ParseMode.MARKDOWN,
         )
+
+    @check_auth
+    async def check_system_prompt_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /check_system_prompt — show current system prompt and ask Gemini to explain it."""
+        chat_id = update.effective_chat.id
+        system_prompt = _load_system_prompt()
+
+        # Send the raw system prompt first
+        header = "📋 *Current System Prompt:*\n\n"
+        for chunk in split_message(header + f"```\n{system_prompt}\n```"):
+            try:
+                await update.message.reply_text(chunk, parse_mode=ParseMode.MARKDOWN)
+            except Exception:
+                await update.message.reply_text(chunk)
+
+        # Ask Gemini to explain it
+        await update.message.reply_chat_action(ChatAction.TYPING)
+
+        async def send_progress(msg: str):
+            try:
+                await update.message.reply_chat_action(ChatAction.TYPING)
+                await update.effective_chat.send_message(f"💭 {msg}")
+            except Exception:
+                pass
+
+        explain_msg = (
+            "以下是你目前的 system prompt，請用繁體中文簡要解釋每個段落會讓你做什麼事情，"
+            "以及這些指令對你的行為有什麼影響：\n\n"
+            f"{system_prompt}"
+        )
+        try:
+            response = await ai_client.chat(chat_id, explain_msg, progress_callback=send_progress)
+        except Exception as e:
+            logger.error(f"check_system_prompt error: {e}", exc_info=True)
+            response = f"❌ Error asking Gemini to explain: {str(e)[:200]}"
+
+        for chunk in split_message(response):
+            try:
+                sanitized = _sanitize_markdown(chunk)
+                await update.message.reply_text(sanitized, parse_mode=ParseMode.MARKDOWN)
+            except Exception:
+                try:
+                    await update.message.reply_text(chunk)
+                except Exception as e:
+                    logger.error(f"Failed to send message: {e}")
 
     @check_auth
     async def clear_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -242,6 +289,7 @@ def setup_handlers(
         "start": start_handler,
         "help": help_handler,
         "status": status_handler,
+        "check_system_prompt": check_system_prompt_handler,
         "clear": clear_handler,
         "last_error": last_error_handler,
         "ai_chat": ai_chat_handler,
