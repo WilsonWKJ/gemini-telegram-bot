@@ -39,7 +39,7 @@ MAX_HISTORY_CHARS_TOTAL = 5000
 
 def _load_system_prompt() -> str:
     """Load system prompt from config file."""
-    prompt_path = PROJECT_DIR / "config" / "system_prompt.md"
+    prompt_path = Path.home() / "SideProjects" / "config" / "system_prompt.md"
     if prompt_path.exists():
         return prompt_path.read_text().strip()
     return "You are a personal AI assistant running as a Telegram bot."
@@ -129,10 +129,10 @@ class AIClient:
         # Escape the prompt for shell
         escaped_prompt = prompt.replace("'", "'\\''")
 
-        # Call gemini CLI from home dir so it can access both the bot and travel plan repos
+        # Call gemini CLI from the unified SideProjects directory
         command = (
             f'export NVM_DIR="$HOME/.nvm" && . "$NVM_DIR/nvm.sh" && nvm use 22 >/dev/null 2>&1 && '
-            f"cd ~ && "
+            f"cd ~/SideProjects && "
             f"timeout 600 gemini -p '{escaped_prompt}' --yolo 2>&1"
         )
 
