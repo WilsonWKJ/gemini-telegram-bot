@@ -53,11 +53,19 @@ class AIClient:
         self.start_time = time.time()
         # Simple conversation history per chat_id (text only)
         self.conversations: dict[int, list[dict]] = {}
+        # Selected model per chat_id (defaults to "flash")
+        self.models: dict[int, str] = {}
 
     def _get_history(self, chat_id: int) -> list[dict]:
         if chat_id not in self.conversations:
             self.conversations[chat_id] = []
         return self.conversations[chat_id]
+
+    def _get_model(self, chat_id: int) -> str:
+        return self.models.get(chat_id, "flash")
+
+    def set_model(self, chat_id: int, model_name: str):
+        self.models[chat_id] = model_name
 
     def _trim_history(self, chat_id: int):
         history = self._get_history(chat_id)
@@ -99,6 +107,7 @@ class AIClient:
     async def chat(self, chat_id: int, user_message: str, progress_callback=None) -> str:
         """Send a message to Gemini CLI and return the response."""
         history = self._get_history(chat_id)
+        model = self._get_model(chat_id)
         last_progress_time = 0.0
 
         async def _notify(msg: str):
@@ -108,7 +117,7 @@ class AIClient:
                 except Exception:
                     pass
 
-        await _notify("🤖 Calling Gemini CLI...")
+        await _notify(f"🤖 Calling Gemini CLI ({model})...")
 
         async def _on_line(line: str):
             """Called for each stdout line as it arrives from Gemini CLI."""
@@ -133,7 +142,7 @@ class AIClient:
         command = (
             f'export NVM_DIR="$HOME/.nvm" && . "$NVM_DIR/nvm.sh" && nvm use 22 >/dev/null 2>&1 && '
             f"cd ~/SideProjects && "
-            f"timeout 600 gemini -p '{escaped_prompt}' --yolo 2>&1"
+            f"timeout 600 gemini -m {model} -p '{escaped_prompt}' --yolo 2>&1"
         )
 
         result = await self.executor.execute_streaming(

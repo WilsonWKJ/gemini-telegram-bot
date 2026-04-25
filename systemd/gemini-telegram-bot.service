@@ -5,10 +5,10 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=/home/rogueone/Projects/gemini-telegram-bot
+WorkingDirectory=/home/rogueone/SideProjects/gemini-telegram-bot
 EnvironmentFile=/home/rogueone/Documents/secrets/gemini-telegram-agent.env
 Environment=PATH=/home/rogueone/.local/bin:/home/rogueone/.npm-global/bin:/home/rogueone/.nvm/versions/node/v22.22.2/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
-ExecStart=/usr/bin/python3 /home/rogueone/Projects/gemini-telegram-bot/main.py
+ExecStart=/usr/bin/python3 /home/rogueone/SideProjects/gemini-telegram-bot/main.py
 Restart=always
 RestartSec=10
 StandardOutput=journal

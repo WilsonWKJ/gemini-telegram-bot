@@ -116,6 +116,7 @@ def setup_handlers(
             "I'm powered by Google Gemini CLI.\n\n"
             "📋 *Commands:*\n"
             "/status — Bot health check\n"
+            "/model — View or switch AI model\n"
             "/check\\_system\\_prompt — View & explain system prompt\n"
             "/clear — Clear conversation history\n"
             "/last\\_error — Show last error details\n"
@@ -133,6 +134,7 @@ def setup_handlers(
             "Gemini can read its own source code and explain how it works.\n\n"
             "📋 *Commands:*\n"
             "`/status` — Bot health check\n"
+            "`/model` — View or switch AI model\n"
             "`/check_system_prompt` — View & explain system prompt\n"
             "`/clear` — Clear conversation history\n"
             "`/last_error` — Show last error details\n"
@@ -143,6 +145,7 @@ def setup_handlers(
     @check_auth
     async def status_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle /status — show bot health and stats."""
+        chat_id = update.effective_chat.id
         uptime_secs = time.time() - ai_client.start_time
         days, remainder = divmod(int(uptime_secs), 86400)
         hours, remainder = divmod(remainder, 3600)
@@ -155,6 +158,7 @@ def setup_handlers(
             uptime_str = f"{minutes}m"
 
         active_chats = len(ai_client.conversations)
+        current_model = ai_client._get_model(chat_id)
 
         # Quick check: can we reach gemini CLI?
         check_cmd = (
@@ -169,8 +173,46 @@ def setup_handlers(
             f"✅ Running\n"
             f"⏱ Uptime: `{uptime_str}`\n"
             f"🤖 Gemini CLI: `{gemini_version}`\n"
+            f"🧠 Model: `{current_model}`\n"
             f"💬 Active conversations: `{active_chats}`\n"
             f"🔒 Rate limit: `{security.rate_limit} req/min`",
+            parse_mode=ParseMode.MARKDOWN,
+        )
+
+    @check_auth
+    async def model_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /model — view or switch model."""
+        chat_id = update.effective_chat.id
+        args = context.args
+
+        valid_models = ["flash", "pro", "flash-lite", "auto"]
+        
+        if not args:
+            current = ai_client._get_model(chat_id)
+            await update.message.reply_text(
+                f"🧠 *Model Selection*\n\n"
+                f"Current model: `{current}`\n\n"
+                f"To switch, use:\n"
+                f"`/model flash` — Fast & balanced (Default)\n"
+                f"`/model pro` — High reasoning, lower quota\n"
+                f"`/model flash-lite` — Fastest & lightest\n"
+                f"`/model auto` — Best available\n",
+                parse_mode=ParseMode.MARKDOWN,
+            )
+            return
+
+        new_model = args[0].lower()
+        if new_model not in valid_models:
+            await update.message.reply_text(
+                f"❌ Invalid model: `{new_model}`\n"
+                f"Valid options: {', '.join(valid_models)}",
+                parse_mode=ParseMode.MARKDOWN,
+            )
+            return
+
+        ai_client.set_model(chat_id, new_model)
+        await update.message.reply_text(
+            f"✅ Model switched to `{new_model}`.",
             parse_mode=ParseMode.MARKDOWN,
         )
 
