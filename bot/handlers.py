@@ -117,6 +117,7 @@ def setup_handlers(
             "📋 *Commands:*\n"
             "/status — Bot health check\n"
             "/model — View or switch AI model\n"
+            "/sync — Sync knowledge with GitHub\n"
             "/check\\_system\\_prompt — View & explain system prompt\n"
             "/clear — Clear conversation history\n"
             "/last\\_error — Show last error details\n"
@@ -135,6 +136,7 @@ def setup_handlers(
             "📋 *Commands:*\n"
             "`/status` — Bot health check\n"
             "`/model` — View or switch AI model\n"
+            "`/sync` — Sync knowledge with GitHub\n"
             "`/check_system_prompt` — View & explain system prompt\n"
             "`/clear` — Clear conversation history\n"
             "`/last_error` — Show last error details\n"
@@ -293,6 +295,23 @@ def setup_handlers(
                 await update.message.reply_text(chunk)
 
     @check_auth
+    async def sync_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Sync the ai-workspace and bot repositories from git."""
+        if not await SecurityManager.is_authorized(update.effective_chat.id):
+            return
+            
+        await update.message.reply_chat_action(ChatAction.TYPING)
+        
+        msg = await update.message.reply_text("🔄 Syncing brain (ai-workspace)...")
+        result_ai = await executor.execute("cd ~/Workspace/ai-workspace && git pull origin master")
+        
+        await msg.edit_text(f"✅ ai-workspace synced.\n\n🔄 Syncing bot (gemini-telegram-bot)...")
+        result_bot = await executor.execute("cd ~/Workspace/gemini-telegram-bot && git pull origin master")
+        
+        summary = f"🏁 **Sync Completed**\n\n**ai-workspace:**\n```\n{result_ai.output[:500]}\n```\n\n**bot:**\n```\n{result_bot.output[:500]}\n```"
+        await msg.edit_text(summary, parse_mode=ParseMode.MARKDOWN)
+
+    @check_auth
     async def ai_chat_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Handle freeform text messages — route to Gemini CLI."""
         chat_id = update.effective_chat.id
@@ -335,5 +354,6 @@ def setup_handlers(
         "check_system_prompt": check_system_prompt_handler,
         "clear": clear_handler,
         "last_error": last_error_handler,
+        "sync": sync_handler,
         "ai_chat": ai_chat_handler,
     }
