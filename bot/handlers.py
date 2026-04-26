@@ -331,6 +331,7 @@ def setup_handlers(
         "start": start_handler,
         "help": help_handler,
         "status": status_handler,
+        "model": model_handler,
         "check_system_prompt": check_system_prompt_handler,
         "clear": clear_handler,
         "last_error": last_error_handler,
