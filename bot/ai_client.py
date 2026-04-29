@@ -2,11 +2,13 @@
 
 Uses `gemini -p` (non-interactive mode) with `--yolo` (auto-approve actions).
 Gemini CLI handles its own authentication via the user's Google account.
-No API keys or system prompts needed.
+Supports multiple Google accounts with automatic fallback on quota errors.
 """
 
+import json
 import logging
 import re
+import shutil
 import time
 from pathlib import Path
 
@@ -36,6 +38,78 @@ MAX_HISTORY = 10
 MAX_HISTORY_CHARS_PER_MSG = 1000
 MAX_HISTORY_CHARS_TOTAL = 5000
 
+# Patterns that indicate a quota/rate-limit error
+_QUOTA_PATTERNS = [
+    re.compile(r"status:\s*429", re.IGNORECASE),
+    re.compile(r"RESOURCE_EXHAUSTED", re.IGNORECASE),
+    re.compile(r"quota", re.IGNORECASE),
+    re.compile(r"rate.?limit", re.IGNORECASE),
+]
+
+
+class CredentialManager:
+    """Manages multiple Google OAuth credentials for Gemini CLI fallback."""
+
+    def __init__(self):
+        self.gemini_dir = Path.home() / ".gemini"
+        self.accounts_dir = self.gemini_dir / "accounts"
+        self.active_creds = self.gemini_dir / "oauth_creds.json"
+        self._accounts: list[str] = []
+        self._active_index: int = 0
+        self._discover_accounts()
+
+    def _discover_accounts(self):
+        """Find all available account profiles."""
+        if not self.accounts_dir.exists():
+            logger.warning("No accounts directory found at %s", self.accounts_dir)
+            return
+        self._accounts = sorted([
+            d.name for d in self.accounts_dir.iterdir()
+            if d.is_dir() and (d / "oauth_creds.json").exists()
+        ])
+        if not self._accounts:
+            logger.warning("No account profiles found in %s", self.accounts_dir)
+            return
+        # Determine which account is currently active by comparing creds
+        current = self._read_creds(self.active_creds)
+        for i, name in enumerate(self._accounts):
+            stored = self._read_creds(self.accounts_dir / name / "oauth_creds.json")
+            if current and stored and current.get("refresh_token") == stored.get("refresh_token"):
+                self._active_index = i
+                break
+        logger.info(
+            "Credential manager: %d accounts available %s, active: %s",
+            len(self._accounts), self._accounts, self.active_account,
+        )
+
+    @staticmethod
+    def _read_creds(path: Path) -> dict | None:
+        try:
+            return json.loads(path.read_text())
+        except Exception:
+            return None
+
+    @property
+    def active_account(self) -> str | None:
+        if not self._accounts:
+            return None
+        return self._accounts[self._active_index]
+
+    @property
+    def account_count(self) -> int:
+        return len(self._accounts)
+
+    def switch_to_next(self) -> str | None:
+        """Switch to the next available account. Returns the new account name, or None if only one account."""
+        if len(self._accounts) <= 1:
+            return None
+        self._active_index = (self._active_index + 1) % len(self._accounts)
+        new_account = self._accounts[self._active_index]
+        src = self.accounts_dir / new_account / "oauth_creds.json"
+        shutil.copy2(src, self.active_creds)
+        logger.info("Switched credentials to account: %s", new_account)
+        return new_account
+
 
 def _load_system_prompt() -> str:
     """Load system prompt from config file."""
@@ -45,12 +119,18 @@ def _load_system_prompt() -> str:
     return "You are a personal AI assistant running as a Telegram bot."
 
 
+def _is_quota_error(output: str) -> bool:
+    """Check if the output contains quota/rate-limit errors."""
+    return any(p.search(output) for p in _QUOTA_PATTERNS)
+
+
 class AIClient:
     """Client that delegates to Gemini CLI."""
 
     def __init__(self, executor: CommandExecutor):
         self.executor = executor
         self.start_time = time.time()
+        self.cred_manager = CredentialManager()
         # Simple conversation history per chat_id (text only)
         self.conversations: dict[int, list[dict]] = {}
         # Selected model per chat_id (defaults to "flash")
@@ -104,6 +184,14 @@ class AIClient:
         stripped = line.strip()
         return any(p.match(stripped) for p in _PROGRESS_PATTERNS)
 
+    def _build_command(self, model: str, escaped_prompt: str) -> str:
+        """Build the gemini CLI command string."""
+        return (
+            f'export NVM_DIR="$HOME/.nvm" && . "$NVM_DIR/nvm.sh" && nvm use 22 >/dev/null 2>&1 && '
+            f"cd ~/Workspace && "
+            f"timeout 600 gemini -m {model} -p '{escaped_prompt}' --yolo 2>&1"
+        )
+
     async def chat(self, chat_id: int, user_message: str, progress_callback=None) -> str:
         """Send a message to Gemini CLI and return the response."""
         history = self._get_history(chat_id)
@@ -134,20 +222,23 @@ class AIClient:
 
         # Build the prompt
         prompt = self._build_prompt(chat_id, user_message)
-
-        # Escape the prompt for shell
         escaped_prompt = prompt.replace("'", "'\\''")
-
-        # Call gemini CLI from the unified Workspace directory
-        command = (
-            f'export NVM_DIR="$HOME/.nvm" && . "$NVM_DIR/nvm.sh" && nvm use 22 >/dev/null 2>&1 && '
-            f"cd ~/Workspace && "
-            f"timeout 600 gemini -m {model} -p '{escaped_prompt}' --yolo 2>&1"
-        )
+        command = self._build_command(model, escaped_prompt)
 
         result = await self.executor.execute_streaming(
             command, line_callback=_on_line, timeout=GEMINI_TIMEOUT
         )
+
+        # Check for quota error and retry with next account
+        if not result.timed_out and _is_quota_error(result.output):
+            new_account = self.cred_manager.switch_to_next()
+            if new_account:
+                logger.warning("Quota hit, switching to account: %s", new_account)
+                await _notify(f"⚠️ Quota exceeded, switching to {new_account}...")
+                last_progress_time = 0.0
+                result = await self.executor.execute_streaming(
+                    command, line_callback=_on_line, timeout=GEMINI_TIMEOUT
+                )
 
         if result.timed_out:
             response = "⏰ Gemini CLI timed out. Try a simpler question."
