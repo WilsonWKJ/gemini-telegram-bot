@@ -296,19 +296,19 @@ def setup_handlers(
 
     @check_auth
     async def sync_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Sync the ai-workspace and bot repositories from git."""
+        """Sync the Workspace (brain) and bot repositories from git."""
         if not await SecurityManager.is_authorized(update.effective_chat.id):
             return
             
         await update.message.reply_chat_action(ChatAction.TYPING)
         
-        msg = await update.message.reply_text("🔄 Syncing brain (ai-workspace)...")
-        result_ai = await executor.execute("cd ~/Workspace/ai-workspace && git pull origin master")
+        msg = await update.message.reply_text("🔄 Syncing brain (Workspace)...")
+        result_ai = await executor.execute("cd ~/Workspace && git pull origin master")
         
-        await msg.edit_text(f"✅ ai-workspace synced.\n\n🔄 Syncing bot (gemini-telegram-bot)...")
+        await msg.edit_text(f"✅ Workspace synced.\n\n🔄 Syncing bot (gemini-telegram-bot)...")
         result_bot = await executor.execute("cd ~/Workspace/gemini-telegram-bot && git pull origin master")
         
-        summary = f"🏁 **Sync Completed**\n\n**ai-workspace:**\n```\n{result_ai.output[:500]}\n```\n\n**bot:**\n```\n{result_bot.output[:500]}\n```"
+        summary = f"🏁 **Sync Completed**\n\n**Workspace:**\n```\n{result_ai.output[:500]}\n```\n\n**bot:**\n```\n{result_bot.output[:500]}\n```"
         await msg.edit_text(summary, parse_mode=ParseMode.MARKDOWN)
 
     @check_auth
