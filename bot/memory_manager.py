@@ -1,10 +1,7 @@
 import asyncio
 import logging
-import os
 from datetime import datetime
 from pathlib import Path
-from google import genai
-from google.genai import types
 
 logger = logging.getLogger(__name__)
 
@@ -12,10 +9,11 @@ logger = logging.getLogger(__name__)
 SUMMARY_THRESHOLD = 2
 
 class MemoryManager:
-    """Manages chat logs and background summarization using google-genai."""
+    """Manages chat logs and background summarization using Gemini CLI (OAuth)."""
     
-    def __init__(self, chat_id: int):
+    def __init__(self, chat_id: int, executor):
         self.chat_id = chat_id
+        self.executor = executor
         self.log_dir = Path.home() / "Workspace" / "knowledge" / "chat_logs" / str(chat_id)
         self.log_dir.mkdir(parents=True, exist_ok=True)
         
@@ -74,16 +72,9 @@ class MemoryManager:
             asyncio.create_task(self._summarize_background())
 
     async def _summarize_background(self):
-        """Runs the LLM summarization in the background."""
-        logger.info(f"Triggering background summarization for chat {self.chat_id}...")
+        """Runs the LLM summarization in the background using Gemini CLI."""
+        logger.info(f"Triggering background summarization for chat {self.chat_id} via Gemini CLI...")
         
-        api_key = os.environ.get("GEMINI_API_KEY")
-        if not api_key:
-            logger.warning("GEMINI_API_KEY not set. Cannot run fast background summarization.")
-            # Clear buffer anyway to avoid memory leak if no key is set
-            self.recent_messages = self.recent_messages[-2:] 
-            return
-
         # Prepare the text to summarize
         messages_text = ""
         for msg in self.recent_messages:
@@ -99,34 +90,41 @@ class MemoryManager:
             "Return ONLY the new summary text."
         )
 
+        escaped_prompt = prompt.replace("'", "'\\''")
+        
+        # Use gemini CLI so it shares the OAuth session instead of needing an API Key
+        command = (
+            f'export NVM_DIR="$HOME/.nvm" && . "$NVM_DIR/nvm.sh" && nvm use 22 >/dev/null 2>&1 && '
+            f"cd ~/Workspace && "
+            f"timeout 300 gemini -m gemini-3-flash-preview -p '{escaped_prompt}' --yolo 2>&1"
+        )
+
         try:
-            # We use synchronous client in an executor to avoid blocking the asyncio loop, 
-            # or the async client if genai supports it. genai has async support.
-            client = genai.Client(api_key=api_key)
-            # Run in thread pool since genai async is sometimes tricky or we can just use run_in_executor
-            loop = asyncio.get_running_loop()
+            result = await self.executor.execute(command, timeout=300)
             
-            def _call_api():
-                return client.models.generate_content(
-                    model='gemini-3-flash-preview',
-                    contents=prompt,
-                    config=types.GenerateContentConfig(
-                        temperature=0.3,
-                    )
-                )
-                
-            response = await loop.run_in_executor(None, _call_api)
-            
-            if response.text:
-                self.current_summary = response.text.strip()
+            if result.success and result.stdout:
+                # Clean up CLI boilerplate from the output
+                lines = result.stdout.strip().splitlines()
+                cleaned = []
+                for line in lines:
+                    stripped = line.strip()
+                    if stripped.startswith("YOLO mode is enabled"): continue
+                    if stripped.startswith("Ripgrep is not available"): continue
+                    cleaned.append(line)
+                    
+                self.current_summary = "\n".join(cleaned).strip()
                 # Save to disk
                 self.summary_path.write_text(self.current_summary, encoding="utf-8")
                 # Keep only the last 2 messages for immediate continuity
                 self.recent_messages = self.recent_messages[-2:]
-                logger.info("Background summarization complete.")
+                logger.info("Background summarization via CLI complete.")
+            else:
+                logger.error(f"Summarization CLI failed (rc={result.return_code}): {result.stderr or result.stdout}")
+                self.recent_messages = self.recent_messages[-2:]
                 
         except Exception as e:
             logger.error(f"Summarization failed: {e}")
+            self.recent_messages = self.recent_messages[-2:]
 
     def get_prompt_context(self) -> str:
         """Returns the formatted string to prepend to the Gemini CLI prompt."""

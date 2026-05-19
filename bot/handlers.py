@@ -186,7 +186,7 @@ def setup_handlers(
         chat_id = update.effective_chat.id
         args = context.args
 
-        valid_models = ["flash", "pro", "flash-lite", "auto"]
+        valid_models = ["gemini-3-flash-preview", "pro", "flash-lite", "auto"]
         
         if not args:
             current = ai_client._get_model(chat_id)
@@ -194,7 +194,7 @@ def setup_handlers(
                 f"🧠 *Model Selection*\n\n"
                 f"Current model: `{current}`\n\n"
                 f"To switch, use:\n"
-                f"`/model flash` — Fast & balanced (Default)\n"
+                f"`/model gemini-3-flash-preview` — Fast & balanced (Default)\n"
                 f"`/model pro` — High reasoning, lower quota\n"
                 f"`/model flash-lite` — Fastest & lightest\n"
                 f"`/model auto` — Best available\n",
