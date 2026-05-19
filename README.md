@@ -5,27 +5,19 @@ A personal Telegram bot powered by Google Gemini CLI — chat with Gemini from y
 ## Architecture
 
 ```
-Phone (Telegram, any network)
-    |
-    v Send message
-Telegram Cloud (public internet)
-    |
-    |  Bot polls for new messages (outbound HTTPS only)
-    |  No inbound ports, no exposed IP
-    v
-Host machine
-    +-- Gemini CLI (Google account auth)
-    |
-    v Send response (outbound HTTPS)
-Telegram Cloud -> You receive the reply
+Phone (Telegram) --[message]--> Bot (Proxy) --[CLI + context]--> Workspace Brain (GEMINI.md)
+                                     ^                               |
+                                     |                               v
+                               Background Summary <----------- Tools & Knowledge
 ```
 
 ## Key Design Decisions
 
-- **Polling mode** (not webhook) — no need to expose any port
-- **Gemini CLI** — no API keys to manage, authenticates via Google account
-- **Chat ID whitelist** — only responds to your Telegram account
-- **Thin wrapper** — bot just passes messages to `gemini -p --yolo` and returns output
+- **Workspace-Native Brain** — The personality and rules live in `~/Workspace/GEMINI.md`, consistent across CLI and Bot.
+- **Summary Buffer Memory** — Automated background summarization (every 2 messages) keeps context sharp without prompt bloat.
+- **JSON Streaming** — Bot parses Gemini CLI's `stream-json` output to show real-time tool progress (Thinking, Reading, Searching) on Telegram.
+- **Outbound-Only** — Polling mode ensures no open ports or public IPs are required.
+- **YOLO Execution** — Bot operates in auto-approve mode for seamless mobile interaction.
 
 ## Quick Start
 

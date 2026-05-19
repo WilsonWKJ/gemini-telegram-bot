@@ -8,15 +8,14 @@ from telegram import Update
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode, ChatAction
 
-from .ai_client import AIClient, _load_system_prompt
+from .ai_client import AIClient
 from .executor import CommandExecutor
 from .security import SecurityManager
 
 logger = logging.getLogger(__name__)
 
-# Store last errors per chat_id for /last_error command
-_last_errors: dict[int, dict] = {}
-
+# Workspace path for GEMINI.md
+GEMINI_MD_PATH = "/home/wilsonwkj/Workspace/GEMINI.md"
 
 def _store_error(chat_id: int, error: Exception, context_msg: str = ""):
     """Store the last error for a chat so the user can query it later."""
@@ -159,7 +158,7 @@ def setup_handlers(
         else:
             uptime_str = f"{minutes}m"
 
-        active_chats = len(ai_client.conversations)
+        active_chats = len(ai_client.memories)
         current_model = ai_client._get_model(chat_id)
 
         # Quick check: can we reach gemini CLI?
@@ -220,13 +219,18 @@ def setup_handlers(
 
     @check_auth
     async def check_system_prompt_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Handle /check_system_prompt — show current system prompt and ask Gemini to explain it."""
+        """Handle /check_system_prompt — show current GEMINI.md and ask Gemini to explain it."""
         chat_id = update.effective_chat.id
-        system_prompt = _load_system_prompt()
+        
+        try:
+            with open(GEMINI_MD_PATH, "r", encoding="utf-8") as f:
+                system_prompt = f.read()
+        except FileNotFoundError:
+            system_prompt = "No GEMINI.md found in Workspace root."
 
         # Send the raw system prompt first
-        header = "📋 *Current System Prompt:*\n\n"
-        for chunk in split_message(header + f"```\n{system_prompt}\n```"):
+        header = "📋 *Current System Prompt (GEMINI.md):*\n\n"
+        for chunk in split_message(header + f"```markdown\n{system_prompt}\n```"):
             try:
                 await update.message.reply_text(chunk, parse_mode=ParseMode.MARKDOWN)
             except Exception:
@@ -243,7 +247,7 @@ def setup_handlers(
                 pass
 
         explain_msg = (
-            "以下是你目前的 system prompt，請用繁體中文簡要解釋每個段落會讓你做什麼事情，"
+            "以下是你目前的系統指令 (GEMINI.md)，請用繁體中文簡要解釋每個段落會讓你做什麼事情，"
             "以及這些指令對你的行為有什麼影響：\n\n"
             f"{system_prompt}"
         )
