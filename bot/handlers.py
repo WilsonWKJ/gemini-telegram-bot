@@ -187,7 +187,7 @@ def setup_handlers(
         chat_id = update.effective_chat.id
         args = context.args
 
-        valid_models = ["gemini-3-flash-preview", "pro", "flash-lite", "auto"]
+        valid_models = ["gemini-3.5-flash", "gemini-3.5-pro", "flash-lite", "auto"]
         
         if not args:
             current = ai_client._get_model(chat_id)
@@ -195,8 +195,8 @@ def setup_handlers(
                 f"🧠 *Model Selection*\n\n"
                 f"Current model: `{current}`\n\n"
                 f"To switch, use:\n"
-                f"`/model gemini-3-flash-preview` — Fast & balanced (Default)\n"
-                f"`/model pro` — High reasoning, lower quota\n"
+                f"`/model gemini-3.5-flash` — Fast & balanced (Default)\n"
+                f"`/model gemini-3.5-pro` — High reasoning, lower quota\n"
                 f"`/model flash-lite` — Fastest & lightest\n"
                 f"`/model auto` — Best available\n",
                 parse_mode=ParseMode.MARKDOWN,
@@ -351,6 +351,39 @@ def setup_handlers(
                 except Exception as e:
                     logger.error(f"Failed to send message: {e}")
 
+    @check_auth
+    async def macro_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        class MockMessage:
+            def __init__(self):
+                self.text = "看看大環境"
+            async def reply_chat_action(self, action):
+                await update.message.reply_chat_action(action)
+            async def reply_text(self, text, parse_mode=None):
+                await update.message.reply_text(text, parse_mode=parse_mode)
+        class MockUpdate:
+            def __init__(self):
+                self.message = MockMessage()
+                self.effective_chat = update.effective_chat
+        await ai_chat_handler(MockUpdate(), context)
+
+    @check_auth
+    async def dive_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        if not context.args:
+            await update.message.reply_text("⚠️ 請提供股票代號，例如：`/dive 2330`", parse_mode=ParseMode.MARKDOWN)
+            return
+        class MockMessage:
+            def __init__(self):
+                self.text = f"幫我查一下 {context.args[0]}"
+            async def reply_chat_action(self, action):
+                await update.message.reply_chat_action(action)
+            async def reply_text(self, text, parse_mode=None):
+                await update.message.reply_text(text, parse_mode=parse_mode)
+        class MockUpdate:
+            def __init__(self):
+                self.message = MockMessage()
+                self.effective_chat = update.effective_chat
+        await ai_chat_handler(MockUpdate(), context)
+
     return {
         "start": start_handler,
         "help": help_handler,
@@ -360,5 +393,7 @@ def setup_handlers(
         "clear": clear_handler,
         "last_error": last_error_handler,
         "sync": sync_handler,
+        "macro": macro_handler,
+        "dive": dive_handler,
         "ai_chat": ai_chat_handler,
     }
