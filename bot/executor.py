@@ -18,7 +18,7 @@ MAX_OUTPUT_LENGTH = 100000
 # Default command timeout
 DEFAULT_TIMEOUT = 120
 # Extended timeout for gemini CLI calls
-GEMINI_TIMEOUT = 900  # 15 minutes for complex gemini -p operations
+GEMINI_TIMEOUT = 1200  # 20 minutes for complex gemini -p operations
 
 
 @dataclass

@@ -98,11 +98,11 @@ class MemoryManager:
         command = (
             f'export NVM_DIR="$HOME/.nvm" && . "$NVM_DIR/nvm.sh" && nvm use 22 >/dev/null 2>&1 && '
             f"cd ~/Workspace && "
-            f"timeout 300 gemini -m gemini-3-flash-preview -p '{escaped_prompt}' --yolo 2>&1"
+            f"timeout 600 gemini -m gemini-3-flash-preview -p '{escaped_prompt}' --yolo 2>&1"
         )
 
         try:
-            result = await self.executor.execute(command, timeout=300)
+            result = await self.executor.execute(command, timeout=600)
             
             if result.success and result.stdout:
                 # Clean up CLI boilerplate from the output

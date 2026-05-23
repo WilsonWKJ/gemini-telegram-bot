@@ -145,7 +145,7 @@ class AIClient:
         return (
             f'export NVM_DIR="$HOME/.nvm" && . "$NVM_DIR/nvm.sh" && nvm use 22 >/dev/null 2>&1 && '
             f"cd ~/Workspace && "
-            f"timeout 600 gemini -m {model} -p '{escaped_prompt}' --output-format stream-json --yolo 2>&1"
+            f"timeout 1200 gemini -m {model} -p '{escaped_prompt}' --output-format stream-json --yolo 2>&1"
         )
 
     async def chat(self, chat_id: int, user_message: str, progress_callback=None) -> str:
