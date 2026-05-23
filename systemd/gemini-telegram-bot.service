@@ -9,6 +9,7 @@ User=wilsonwkj
 WorkingDirectory=/home/wilsonwkj/Workspace/repos/gemini-telegram-bot
 EnvironmentFile=/home/wilsonwkj/Documents/secrets/gemini-telegram-agent.env
 Environment=PATH=/home/wilsonwkj/.local/bin:/home/wilsonwkj/.npm-global/bin:/home/wilsonwkj/.nvm/versions/node/v22.22.2/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin
+Environment=GEMINI_CLI_TRUST_WORKSPACE=true
 ExecStart=/home/wilsonwkj/Workspace/repos/gemini-telegram-bot/.venv/bin/python /home/wilsonwkj/Workspace/repos/gemini-telegram-bot/main.py
 Restart=always
 RestartSec=10
