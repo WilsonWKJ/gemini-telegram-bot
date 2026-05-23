@@ -112,6 +112,7 @@ def main():
     app.add_handler(CommandHandler("last_error", handlers["last_error"]))
     app.add_handler(CommandHandler("pull", handlers["pull"]))
     app.add_handler(CommandHandler("push", handlers["push"]))
+    app.add_handler(CommandHandler("diff", handlers["diff"]))
     app.add_handler(CommandHandler("macro", handlers["macro"]))
     app.add_handler(CommandHandler("dive", handlers["dive"]))
 

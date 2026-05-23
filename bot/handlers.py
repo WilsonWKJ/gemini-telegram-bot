@@ -18,6 +18,9 @@ logger = logging.getLogger(__name__)
 # Workspace path for GEMINI.md
 GEMINI_MD_PATH = str(Path(__file__).parent.parent.parent.parent / "GEMINI.md")
 
+# Global dict to store crash tracebacks per chat_id
+_last_errors: dict[int, dict] = {}
+
 def _store_error(chat_id: int, error: Exception, context_msg: str = ""):
     """Store the last error for a chat so the user can query it later."""
     _last_errors[chat_id] = {
@@ -119,6 +122,7 @@ def setup_handlers(
             "/model — View or switch AI model\n"
             "/pull — Pull latest knowledge from GitHub\n"
             "/push — Summarize local edits & push to GitHub\n"
+            "/diff — Show local edits analyzed by Gemini\n"
             "/check\\_system\\_prompt — View & explain system prompt\n"
             "/clear — Clear conversation history\n"
             "/last\\_error — Show last error details\n"
@@ -137,16 +141,17 @@ def setup_handlers(
             "💬 Just type any message to chat with Gemini.\n"
             "Gemini can read its own source code and explain how it works.\n\n"
             "📋 *Commands:*\n"
-            "`/status` — Bot health check\n"
-            "`/model` — View or switch AI model\n"
-            "`/pull` — Pull latest knowledge from GitHub\n"
-            "`/push` — Summarize local edits & push to GitHub\n"
-            "`/check_system_prompt` — View & explain system prompt\n"
-            "`/clear` — Clear conversation history\n"
-            "`/last_error` — Show last error details\n"
-            "`/macro` — Check macro environment (Phase 1)\n"
-            "`/dive` — Investigate a ticker (Phase 2, e.g., /dive 2330)\n"
-            "`/help` — Show this help\n",
+            "` /status` — Bot health check\n"
+            "` /model` — View or switch AI model\n"
+            "` /pull` — Pull latest knowledge from GitHub\n"
+            "` /push` — Summarize local edits & push to GitHub\n"
+            "` /diff` — Show local edits analyzed by Gemini\n"
+            "` /check_system_prompt` — View & explain system prompt\n"
+            "` /clear` — Clear conversation history\n"
+            "` /last_error` — Show last error details\n"
+            "` /macro` — Check macro environment (Phase 1)\n"
+            "` /dive` — Investigate a ticker (Phase 2, e.g., /dive 2330)\n"
+            "` /help` — Show this help\n",
             parse_mode=ParseMode.MARKDOWN,
         )
 
@@ -310,9 +315,6 @@ def setup_handlers(
     @check_auth
     async def pull_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Pull the Workspace (brain) and bot repositories from git."""
-        if not await SecurityManager.is_authorized(update.effective_chat.id):
-            return
-            
         await update.message.reply_chat_action(ChatAction.TYPING)
         
         msg = await update.message.reply_text("🔄 Pulling brain (Workspace)...")
@@ -327,9 +329,6 @@ def setup_handlers(
     @check_auth
     async def push_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Summarize and push Workspace changes to git."""
-        if not await SecurityManager.is_authorized(update.effective_chat.id):
-            return
-            
         await update.message.reply_chat_action(ChatAction.TYPING)
         
         msg = await update.message.reply_text("🔍 Checking for local modifications...")
@@ -393,6 +392,52 @@ def setup_handlers(
             await msg.edit_text(
                 f"❌ **Push Failed!**\n\n"
                 f"```\n{push_res.output[:800]}\n```",
+                parse_mode=ParseMode.MARKDOWN
+            )
+
+    @check_auth
+    async def diff_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Show git diff analyzed by Gemini."""
+        await update.message.reply_chat_action(ChatAction.TYPING)
+        
+        msg = await update.message.reply_text("🔍 Fetching local changes from Workspace...")
+        
+        # Check diff in Workspace
+        diff_res = await executor.execute("cd ~/Workspace && git diff HEAD")
+        diff_text = diff_res.output.strip()
+        
+        # If no tracked changes, check git status for untracked files
+        if not diff_text or "diff --git" not in diff_text:
+            status_res = await executor.execute("cd ~/Workspace && git status -s")
+            diff_text = status_res.output.strip()
+            
+        if not diff_text:
+            await msg.edit_text("ℹ️ No local modifications found in Workspace.")
+            return
+            
+        await msg.edit_text("💭 Analyzing changes via Gemini CLI...")
+        
+        # Prompt Gemini (headless) to analyze the diff
+        prompt = (
+            "You are an expert software engineer and analyst. Analyze the following git diff and status "
+            "of the Workspace. Provide a clear, bulleted summary explaining what was changed, the rationale, "
+            "and any potential impacts or next steps. Keep the tone professional and structured.\n\n"
+            f"Here is the diff/status:\n\n{diff_text[:3000]}"
+        )
+        
+        # Call gemini CLI headlessly
+        escaped_prompt = prompt.replace("'", "'\\''")
+        model = ai_client._get_model(update.effective_chat.id)
+        cmd = f'export NVM_DIR="$HOME/.nvm" && . "$NVM_DIR/nvm.sh" && nvm use 22 >/dev/null 2>&1 && gemini -m {model} -p \'{escaped_prompt}\''
+        
+        analysis_res = await executor.execute(cmd)
+        
+        if analysis_res.success and analysis_res.stdout:
+            analysis = analysis_res.stdout.strip()
+            await msg.edit_text(f"📊 **Git Diff Analysis**\n\n{analysis}", parse_mode=ParseMode.MARKDOWN)
+        else:
+            await msg.edit_text(
+                f"❌ Analysis failed. Here is the raw git status:\n\n```\n{diff_text[:1000]}\n```",
                 parse_mode=ParseMode.MARKDOWN
             )
 
@@ -474,6 +519,7 @@ def setup_handlers(
         "last_error": last_error_handler,
         "pull": pull_handler,
         "push": push_handler,
+        "diff": diff_handler,
         "macro": macro_handler,
         "dive": dive_handler,
         "ai_chat": ai_chat_handler,
