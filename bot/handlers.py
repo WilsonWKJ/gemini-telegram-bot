@@ -382,18 +382,31 @@ def setup_handlers(
         push_res = await executor.execute(git_cmd)
         
         if push_res.success:
-            await msg.edit_text(
+            text = (
                 f"✅ **Push Successful!**\n\n"
                 f"📝 Commit message:\n`{commit_msg}`\n\n"
-                f"```\n{push_res.output[:500]}\n```",
-                parse_mode=ParseMode.MARKDOWN
+                f"```\n{push_res.output[:500]}\n```"
             )
+            try:
+                await msg.edit_text(_sanitize_markdown(text), parse_mode=ParseMode.MARKDOWN)
+            except Exception:
+                await msg.edit_text(
+                    f"✅ Push Successful!\n\n"
+                    f"Commit message: {commit_msg}\n\n"
+                    f"{push_res.output[:500]}"
+                )
         else:
-            await msg.edit_text(
+            text = (
                 f"❌ **Push Failed!**\n\n"
-                f"```\n{push_res.output[:800]}\n```",
-                parse_mode=ParseMode.MARKDOWN
+                f"```\n{push_res.output[:800]}\n```"
             )
+            try:
+                await msg.edit_text(_sanitize_markdown(text), parse_mode=ParseMode.MARKDOWN)
+            except Exception:
+                await msg.edit_text(
+                    f"❌ Push Failed!\n\n"
+                    f"{push_res.output[:800]}"
+                )
 
     @check_auth
     async def diff_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -434,12 +447,17 @@ def setup_handlers(
         
         if analysis_res.success and analysis_res.stdout:
             analysis = analysis_res.stdout.strip()
-            await msg.edit_text(f"📊 **Git Diff Analysis**\n\n{analysis}", parse_mode=ParseMode.MARKDOWN)
+            text = f"📊 **Git Diff Analysis**\n\n{analysis}"
+            try:
+                await msg.edit_text(_sanitize_markdown(text), parse_mode=ParseMode.MARKDOWN)
+            except Exception:
+                await msg.edit_text(f"📊 Git Diff Analysis\n\n{analysis}")
         else:
-            await msg.edit_text(
-                f"❌ Analysis failed. Here is the raw git status:\n\n```\n{diff_text[:1000]}\n```",
-                parse_mode=ParseMode.MARKDOWN
-            )
+            text = f"❌ Analysis failed. Here is the raw git status:\n\n```\n{diff_text[:1000]}\n```"
+            try:
+                await msg.edit_text(_sanitize_markdown(text), parse_mode=ParseMode.MARKDOWN)
+            except Exception:
+                await msg.edit_text(f"❌ Analysis failed. Here is the raw git status:\n\n{diff_text[:1000]}")
 
     @check_auth
     async def ai_chat_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
