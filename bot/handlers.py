@@ -4,6 +4,7 @@ import logging
 import time
 import traceback
 from datetime import datetime, timezone
+from pathlib import Path
 from telegram import Update
 from telegram.ext import ContextTypes
 from telegram.constants import ParseMode, ChatAction
@@ -15,7 +16,7 @@ from .security import SecurityManager
 logger = logging.getLogger(__name__)
 
 # Workspace path for GEMINI.md
-GEMINI_MD_PATH = "/home/wilsonwkj/Workspace/GEMINI.md"
+GEMINI_MD_PATH = str(Path(__file__).parent.parent.parent.parent / "GEMINI.md")
 
 def _store_error(chat_id: int, error: Exception, context_msg: str = ""):
     """Store the last error for a chat so the user can query it later."""
