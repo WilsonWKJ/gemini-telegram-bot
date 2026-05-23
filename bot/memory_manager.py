@@ -14,7 +14,7 @@ class MemoryManager:
     def __init__(self, chat_id: int, executor):
         self.chat_id = chat_id
         self.executor = executor
-        self.log_dir = Path.home() / "Workspace" / "knowledge" / "chat_logs" / str(chat_id)
+        self.log_dir = Path(__file__).parent.parent / "chat_logs" / str(chat_id)
         self.log_dir.mkdir(parents=True, exist_ok=True)
         
         self.current_summary = ""
@@ -53,8 +53,10 @@ class MemoryManager:
             return
 
         # Write to daily log
+        import socket
+        hostname = socket.gethostname()
         timestamp = datetime.now().strftime("%H:%M:%S")
-        log_entry = f"**[{timestamp}] {role.capitalize()}**:\n{content}\n\n"
+        log_entry = f"**[{timestamp}] {role.capitalize()} (on {hostname})**:\n{content}\n\n"
         
         try:
             with open(self.full_log_path, "a", encoding="utf-8") as f:
