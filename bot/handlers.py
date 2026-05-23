@@ -121,6 +121,8 @@ def setup_handlers(
             "/check\\_system\\_prompt — View & explain system prompt\n"
             "/clear — Clear conversation history\n"
             "/last\\_error — Show last error details\n"
+            "/macro — Check macro environment (Phase 1)\n"
+            "/dive — Investigate a ticker (Phase 2, e.g., /dive 2330)\n"
             "/help — Show this help\n\n"
             "💬 Just type anything to chat with Gemini!",
             parse_mode=ParseMode.MARKDOWN,
@@ -140,6 +142,8 @@ def setup_handlers(
             "`/check_system_prompt` — View & explain system prompt\n"
             "`/clear` — Clear conversation history\n"
             "`/last_error` — Show last error details\n"
+            "`/macro` — Check macro environment (Phase 1)\n"
+            "`/dive` — Investigate a ticker (Phase 2, e.g., /dive 2330)\n"
             "`/help` — Show this help\n",
             parse_mode=ParseMode.MARKDOWN,
         )
