@@ -117,7 +117,8 @@ def setup_handlers(
             "📋 *Commands:*\n"
             "/status — Bot health check\n"
             "/model — View or switch AI model\n"
-            "/sync — Sync knowledge with GitHub\n"
+            "/pull — Pull latest knowledge from GitHub\n"
+            "/push — Summarize local edits & push to GitHub\n"
             "/check\\_system\\_prompt — View & explain system prompt\n"
             "/clear — Clear conversation history\n"
             "/last\\_error — Show last error details\n"
@@ -138,7 +139,8 @@ def setup_handlers(
             "📋 *Commands:*\n"
             "`/status` — Bot health check\n"
             "`/model` — View or switch AI model\n"
-            "`/sync` — Sync knowledge with GitHub\n"
+            "`/pull` — Pull latest knowledge from GitHub\n"
+            "`/push` — Summarize local edits & push to GitHub\n"
             "`/check_system_prompt` — View & explain system prompt\n"
             "`/clear` — Clear conversation history\n"
             "`/last_error` — Show last error details\n"
@@ -306,21 +308,93 @@ def setup_handlers(
                 await update.message.reply_text(chunk)
 
     @check_auth
-    async def sync_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Sync the Workspace (brain) and bot repositories from git."""
+    async def pull_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Pull the Workspace (brain) and bot repositories from git."""
         if not await SecurityManager.is_authorized(update.effective_chat.id):
             return
             
         await update.message.reply_chat_action(ChatAction.TYPING)
         
-        msg = await update.message.reply_text("🔄 Syncing brain (Workspace)...")
+        msg = await update.message.reply_text("🔄 Pulling brain (Workspace)...")
         result_ai = await executor.execute("cd ~/Workspace && git pull origin master")
         
-        await msg.edit_text(f"✅ Workspace synced.\n\n🔄 Syncing bot (gemini-telegram-bot)...")
+        await msg.edit_text(f"✅ Workspace pulled.\n\n🔄 Pulling bot (gemini-telegram-bot)...")
         result_bot = await executor.execute("cd ~/Workspace/repos/gemini-telegram-bot && git pull origin master")
         
-        summary = f"🏁 **Sync Completed**\n\n**Workspace:**\n```\n{result_ai.output[:500]}\n```\n\n**bot:**\n```\n{result_bot.output[:500]}\n```"
+        summary = f"🏁 **Pull Completed**\n\n**Workspace:**\n```\n{result_ai.output[:500]}\n```\n\n**bot:**\n```\n{result_bot.output[:500]}\n```"
         await msg.edit_text(summary, parse_mode=ParseMode.MARKDOWN)
+
+    @check_auth
+    async def push_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Summarize and push Workspace changes to git."""
+        if not await SecurityManager.is_authorized(update.effective_chat.id):
+            return
+            
+        await update.message.reply_chat_action(ChatAction.TYPING)
+        
+        msg = await update.message.reply_text("🔍 Checking for local modifications...")
+        
+        # Check diff in Workspace
+        diff_res = await executor.execute("cd ~/Workspace && git diff HEAD")
+        diff_text = diff_res.output.strip()
+        
+        # If no tracked changes, check git status for untracked files
+        if not diff_text or "diff --git" not in diff_text:
+            status_res = await executor.execute("cd ~/Workspace && git status -s")
+            diff_text = status_res.output.strip()
+            
+        if not diff_text:
+            await msg.edit_text("ℹ️ No local modifications found in Workspace to push.")
+            return
+            
+        await msg.edit_text("💭 Summarizing changes via Gemini CLI...")
+        
+        # Prompt Gemini (headless) to write a git commit message
+        prompt = (
+            "You are a git commit assistant. Summarize the following git diff/status "
+            "into a single, concise, professional git commit message (e.g. 'docs: update portfolio to ...'). "
+            "Do not include markdown code blocks or quotes in the output. Return ONLY the commit message text. "
+            "Here is the diff/status:\n\n"
+            f"{diff_text[:3000]}"
+        )
+        
+        # Call gemini CLI headlessly
+        escaped_prompt = prompt.replace("'", "'\\''")
+        model = ai_client._get_model(update.effective_chat.id)
+        cmd = f'export NVM_DIR="$HOME/.nvm" && . "$NVM_DIR/nvm.sh" && nvm use 22 >/dev/null 2>&1 && gemini -m {model} -p \'{escaped_prompt}\''
+        
+        summary_res = await executor.execute(cmd)
+        
+        if summary_res.success and summary_res.stdout:
+            commit_msg = summary_res.stdout.strip().strip('"`\'')
+        else:
+            commit_msg = "docs: update knowledge and portfolio via Telegram bot"
+            
+        await msg.edit_text(f"📝 Commit Message: `{commit_msg}`\n\n🚀 Pushing to GitHub...")
+        
+        # Run git commit & push
+        escaped_msg = commit_msg.replace("'", "'\\''")
+        git_cmd = (
+            f"cd ~/Workspace && "
+            f"git add . && "
+            f"git commit -m '{escaped_msg}' && "
+            f"git push origin master"
+        )
+        push_res = await executor.execute(git_cmd)
+        
+        if push_res.success:
+            await msg.edit_text(
+                f"✅ **Push Successful!**\n\n"
+                f"📝 Commit message:\n`{commit_msg}`\n\n"
+                f"```\n{push_res.output[:500]}\n```",
+                parse_mode=ParseMode.MARKDOWN
+            )
+        else:
+            await msg.edit_text(
+                f"❌ **Push Failed!**\n\n"
+                f"```\n{push_res.output[:800]}\n```",
+                parse_mode=ParseMode.MARKDOWN
+            )
 
     @check_auth
     async def ai_chat_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -398,7 +472,8 @@ def setup_handlers(
         "check_system_prompt": check_system_prompt_handler,
         "clear": clear_handler,
         "last_error": last_error_handler,
-        "sync": sync_handler,
+        "pull": pull_handler,
+        "push": push_handler,
         "macro": macro_handler,
         "dive": dive_handler,
         "ai_chat": ai_chat_handler,
