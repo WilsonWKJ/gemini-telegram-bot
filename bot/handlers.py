@@ -310,7 +310,7 @@ def setup_handlers(
         result_ai = await executor.execute("cd ~/Workspace && git pull origin master")
         
         await msg.edit_text(f"✅ Workspace synced.\n\n🔄 Syncing bot (gemini-telegram-bot)...")
-        result_bot = await executor.execute("cd ~/Workspace/gemini-telegram-bot && git pull origin master")
+        result_bot = await executor.execute("cd ~/Workspace/repos/gemini-telegram-bot && git pull origin master")
         
         summary = f"🏁 **Sync Completed**\n\n**Workspace:**\n```\n{result_ai.output[:500]}\n```\n\n**bot:**\n```\n{result_bot.output[:500]}\n```"
         await msg.edit_text(summary, parse_mode=ParseMode.MARKDOWN)
