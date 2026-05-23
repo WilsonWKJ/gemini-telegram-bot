@@ -110,7 +110,7 @@ class AIClient:
         self.cred_manager = CredentialManager()
         # Memory manager per chat_id
         self.memories: dict[int, MemoryManager] = {}
-        # Selected model per chat_id (defaults to "flash")
+        # Selected model per chat_id (defaults to "gemini-3-flash-preview")
         self.models: dict[int, str] = {}
 
     def _get_memory(self, chat_id: int) -> MemoryManager:
@@ -119,7 +119,7 @@ class AIClient:
         return self.memories[chat_id]
 
     def _get_model(self, chat_id: int) -> str:
-        return self.models.get(chat_id, "flash")
+        return self.models.get(chat_id, "gemini-3-flash-preview")
 
     def set_model(self, chat_id: int, model_name: str):
         self.models[chat_id] = model_name

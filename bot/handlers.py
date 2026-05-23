@@ -191,7 +191,7 @@ def setup_handlers(
         chat_id = update.effective_chat.id
         args = context.args
 
-        valid_models = ["flash", "pro", "flash-lite", "auto"]
+        valid_models = ["gemini-3-flash-preview", "gemini-3.1-pro-preview", "gemini-3.1-flash-lite-preview", "flash", "pro", "auto"]
         
         if not args:
             current = ai_client._get_model(chat_id)
@@ -199,9 +199,11 @@ def setup_handlers(
                 f"🧠 *Model Selection*\n\n"
                 f"Current model: `{current}`\n\n"
                 f"To switch, use:\n"
-                f"`/model flash` — Fast & balanced (Default)\n"
-                f"`/model pro` — High reasoning, lower quota\n"
-                f"`/model flash-lite` — Fastest & lightest\n"
+                f"`/model gemini-3-flash-preview` — 3.0 Flash (Default)\n"
+                f"`/model gemini-3.1-pro-preview` — 3.1 Pro (High reasoning)\n"
+                f"`/model gemini-3.1-flash-lite-preview` — 3.1 Lite (Fastest)\n"
+                f"`/model flash` — Dynamic alias (Stable)\n"
+                f"`/model pro` — Dynamic alias (Stable)\n"
                 f"`/model auto` — Best available\n",
                 parse_mode=ParseMode.MARKDOWN,
             )
