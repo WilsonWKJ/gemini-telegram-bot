@@ -14,7 +14,7 @@ class MemoryManager:
     def __init__(self, chat_id: int, executor):
         self.chat_id = chat_id
         self.executor = executor
-        self.log_dir = Path(__file__).parent.parent / "chat_logs" / str(chat_id)
+        self.log_dir = Path(__file__).resolve().parent.parent.parent.parent / "knowledge" / "chat_history_telegram_bot" / str(chat_id)
         self.log_dir.mkdir(parents=True, exist_ok=True)
         
         self.current_summary = ""

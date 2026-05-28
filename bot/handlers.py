@@ -527,6 +527,14 @@ def setup_handlers(
                 self.effective_chat = update.effective_chat
         await ai_chat_handler(MockUpdate(), context)
 
+    @check_auth
+    async def restart_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle /restart — securely restart the bot service."""
+        await update.message.reply_text("🔄 Restarting bot service. Be right back in a few seconds!")
+        import os
+        # Exit the current process. Systemd 'Restart=always' will bring it back up safely.
+        os._exit(0)
+
     return {
         "start": start_handler,
         "help": help_handler,
@@ -540,5 +548,6 @@ def setup_handlers(
         "diff": diff_handler,
         "macro": macro_handler,
         "dive": dive_handler,
+        "restart": restart_handler,
         "ai_chat": ai_chat_handler,
     }

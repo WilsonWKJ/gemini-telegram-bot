@@ -115,6 +115,7 @@ def main():
     app.add_handler(CommandHandler("diff", handlers["diff"]))
     app.add_handler(CommandHandler("macro", handlers["macro"]))
     app.add_handler(CommandHandler("dive", handlers["dive"]))
+    app.add_handler(CommandHandler("restart", handlers["restart"]))
 
     # Global error handler
     async def error_handler(update, context):
